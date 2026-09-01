@@ -215,6 +215,8 @@ describe("M1-B derived contracts", () => {
       "utf8"
     );
     await fs.writeFile(path.join(scope, "pending.md"), note("kb-pending", "learning", { ingestStatus: "pending" }), "utf8");
+    await fs.mkdir(path.join(scope, "模板"), { recursive: true });
+    await fs.writeFile(path.join(scope, "模板", "project.md"), note("{{id}}", "project", { title: "{{title}}" }), "utf8");
 
     const snapshot = await scanCapabilityVault({ vaultRoot: root });
     const artifact = buildCapabilityViewerArtifact(snapshot, "2026-09-01T00:00:00.000Z");
@@ -223,6 +225,7 @@ describe("M1-B derived contracts", () => {
     expect(artifact.objectTypes).toEqual(CAPABILITY_OS_OBJECT_TYPES);
     expect(artifact.admissionLanes).toEqual(["searchable", "review-only", "excluded", "invalid"]);
     expect(artifact.stats.byAdmission["review-only"]).toBe(1);
+    expect(artifact.projects).toEqual([]);
     expect(accepted?.canonicalPath).toBe("能力操作系统/accepted.md");
     expect(accepted?.obsidianUri).toContain("obsidian://open?");
     expect(accepted?.projectIds).toEqual([]);

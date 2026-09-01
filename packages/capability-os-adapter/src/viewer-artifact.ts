@@ -159,7 +159,7 @@ export function buildCapabilityViewerArtifact(
     } satisfies CapabilityViewerRecord;
   });
   const projects = snapshot.records
-    .filter((record) => record.type === "project" && record.id)
+    .filter((record) => record.type === "project" && record.id && record.admission.lane === "searchable")
     .map((record) => ({
       id: record.id!,
       title: record.title,
