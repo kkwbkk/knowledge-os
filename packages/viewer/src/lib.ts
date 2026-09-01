@@ -354,6 +354,76 @@ export type ViewerWorkspaceBundle = {
   lintFindings: ViewerLintFinding[];
 };
 
+export type ViewerCapabilityAdmission = "searchable" | "review-only" | "excluded" | "invalid";
+
+export type ViewerCapabilityRelation = {
+  field: string;
+  kind: string;
+  target: string;
+  targetId?: string;
+  targetTitle?: string;
+  targetPath?: string;
+};
+
+export type ViewerCapabilityRecord = {
+  id: string;
+  type: string;
+  title: string;
+  sourcePath: string;
+  canonicalPath: string;
+  obsidianUri: string;
+  lifecycleStatus?: string;
+  ingestStatus?: string;
+  visibility?: string;
+  updatedAt?: string;
+  admission: ViewerCapabilityAdmission;
+  admissionReason: string;
+  relations: ViewerCapabilityRelation[];
+  issues: Array<{ code: string; field?: string; message: string }>;
+};
+
+export type ViewerCapabilityEvaluationSummary = {
+  questionCount: number;
+  expectedQuestionCount: number;
+  expectedReferenceCount: number;
+  traceableQuestions: number;
+  traceabilityRate: number;
+  questionsWithExpectedHit: number;
+  questionExpectedHitRate: number;
+  expectedReferencesHit: number;
+  expectedReferenceHitRate: number;
+  pendingLeakCount: number;
+  missingExpectedReferenceCount: number;
+  averageDurationMs: number;
+  automatedGatePassed: boolean;
+  relevanceState: "requires-user-rating";
+};
+
+export type ViewerCapabilityOsArtifact = {
+  kind: "capability-os-viewer";
+  version: 1;
+  generatedAt: string;
+  sourceHash: string;
+  canonicalAuthority: "obsidian-vault";
+  derived: true;
+  vaultName: string;
+  scopePath: string;
+  objectTypes: string[];
+  admissionLanes: ViewerCapabilityAdmission[];
+  stats: {
+    markdownFiles: number;
+    validObjects: number;
+    invalidObjects: number;
+    searchableObjects: number;
+    reviewOnlyObjects: number;
+    excludedObjects: number;
+    byType: Record<string, number>;
+    byAdmission: Record<ViewerCapabilityAdmission, number>;
+  };
+  records: ViewerCapabilityRecord[];
+  evaluation: ViewerCapabilityEvaluationSummary | null;
+};
+
 export type ViewerWatchStatus = {
   generatedAt: string;
   watchedRepoRoots: string[];
@@ -904,6 +974,16 @@ export async function fetchGraphArtifact(input = "/api/graph", init?: RequestIni
   }
 
   return response.json() as Promise<ViewerGraphArtifact>;
+}
+
+export async function fetchCapabilityOsArtifact(): Promise<ViewerCapabilityOsArtifact | null> {
+  if (embeddedData()) return null;
+  const response = await fetch("/api/capability-os");
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Failed to load Capability OS artifact: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<ViewerCapabilityOsArtifact>;
 }
 
 export async function searchViewerPages(query: string, options: ViewerSearchOptions = {}): Promise<ViewerSearchResult[]> {

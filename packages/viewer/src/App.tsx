@@ -3,6 +3,7 @@ import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, use
 import { ActivityFeed } from "./components/ActivityFeed";
 import { ApprovalQueue } from "./components/ApprovalQueue";
 import { CandidateList } from "./components/CandidateList";
+import { CapabilityOsPanel } from "./components/CapabilityOsPanel";
 import { CommandPalette, type PaletteCommand } from "./components/CommandPalette";
 import { ExportMenu } from "./components/ExportMenu";
 import { FilterSidebar } from "./components/FilterSidebar";
@@ -83,6 +84,7 @@ export function App() {
     approvals,
     approvalDetail,
     candidates,
+    capabilityOs,
     memoryTasks,
     watchStatus,
     lintFindings,
@@ -121,7 +123,7 @@ export function App() {
   const [graphError, setGraphError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string>("");
-  const [workflowTab, setWorkflowTab] = useState("approvals");
+  const [workflowTab, setWorkflowTab] = useState("capability");
   const [selectedApprovalId, setSelectedApprovalId] = useState<string>("");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -729,7 +731,7 @@ export function App() {
           ☰
         </button>
         <span className="app-bar-title">SwarmVault</span>
-        <span className="app-bar-subtitle">Graph Viewer</span>
+        <span className="app-bar-subtitle">{capabilityOs ? "Capability OS · Graph Viewer" : "Graph Viewer"}</span>
         <span className="app-bar-spacer" />
         <div className="app-bar-actions">
           <ExportMenu cyRef={cyRef} graph={graph} selectedNodeIds={selectedNodeIds} pageMarkdown={activePageMarkdown} />
@@ -882,6 +884,7 @@ export function App() {
         />
         <Tabs
           tabs={[
+            { id: "capability", label: "Knowledge OS", count: capabilityOs?.records.length ?? 0 },
             { id: "approvals", label: "Approvals", count: approvals.reduce((t, a) => t + a.pendingCount, 0) },
             { id: "candidates", label: "Candidates", count: candidates.length },
             { id: "memory", label: "Memory", count: memoryTasks.length },
@@ -892,6 +895,7 @@ export function App() {
           activeTab={workflowTab}
           onTabChange={setWorkflowTab}
         >
+          {workflowTab === "capability" && <CapabilityOsPanel artifact={capabilityOs} error={errors.capabilityOs} />}
           {workflowTab === "approvals" && (
             <ApprovalQueue
               approvals={approvals}

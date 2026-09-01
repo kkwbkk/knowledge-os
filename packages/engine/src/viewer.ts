@@ -257,6 +257,21 @@ export async function startGraphServer(
         return;
       }
 
+      if (url.pathname === "/api/capability-os") {
+        const artifactPath = path.join(paths.stateDir, "capability-os.json");
+        const artifact = await readJsonFile<Record<string, unknown>>(artifactPath).catch(() => null);
+        if (!artifact) {
+          response.writeHead(404, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: "Capability OS artifact not found. Rebuild the adapter runtime first." }));
+          return;
+        }
+        const evaluationPath = path.join(paths.stateDir, "capability-os-evaluation.json");
+        const evaluation = await readJsonFile<{ summary?: unknown }>(evaluationPath).catch(() => null);
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify({ ...artifact, evaluation: evaluation?.summary ?? null }));
+        return;
+      }
+
       if (url.pathname === "/api/graph/query") {
         const question = url.searchParams.get("q") ?? "";
         const traversal = url.searchParams.get("traversal");

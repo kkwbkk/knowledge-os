@@ -14,17 +14,26 @@
     "./runtime": {
       "types": "./dist/runtime.d.ts",
       "import": "./dist/runtime.js"
+    },
+    "./golden-eval": {
+      "types": "./dist/golden-eval.d.ts",
+      "import": "./dist/golden-eval.js"
+    },
+    "./viewer-artifact": {
+      "types": "./dist/viewer-artifact.d.ts",
+      "import": "./dist/viewer-artifact.js"
     }
   },
   "bin": {
     "capability-os-scan": "dist/cli.js",
-    "capability-os-rebuild": "dist/rebuild-cli.js"
+    "capability-os-rebuild": "dist/rebuild-cli.js",
+    "capability-os-eval": "dist/eval-cli.js"
   },
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "tsup src/index.ts src/cli.ts src/runtime.ts src/rebuild-cli.ts --format esm --dts --clean",
+    "build": "tsup src/index.ts src/cli.ts src/runtime.ts src/rebuild-cli.ts src/viewer-artifact.ts src/golden-eval.ts src/eval-cli.ts --format esm --dts --clean",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

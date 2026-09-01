@@ -17,6 +17,21 @@ function splitTermToTokens(term: string, tokens: string[]): void {
   }
 }
 
+function cjkSearchTokens(blocks: readonly string[]): string[] {
+  const tokens: string[] = [];
+  for (const block of blocks) {
+    const characters = [...block];
+    if (characters.length <= 3) {
+      tokens.push(block);
+      continue;
+    }
+    for (let index = 0; index <= characters.length - 3; index += 1) {
+      tokens.push(characters.slice(index, index + 3).join(""));
+    }
+  }
+  return [...new Set(tokens)];
+}
+
 /**
  * Compromise-backed tokenizer. Returns lowercase term strings using
  * compromise's linguistic tokenization (handles contractions, hyphenation,
@@ -24,9 +39,9 @@ function splitTermToTokens(term: string, tokens: string[]): void {
  * returns nothing (e.g. very short strings, non-English text, or edge
  * cases that confuse the grammar).
  *
- * For CJK text (Chinese/Japanese/Korean), extracts individual characters
- * so that SQLite FTS5 with `tokenize='trigram'` can match them against
- * the trigram-indexed content.
+ * For CJK text (Chinese/Japanese/Korean), expands long phrases into
+ * overlapping trigrams so a natural-language question does not require an
+ * entire sentence to appear verbatim in the indexed content.
  *
  * This is the shared replacement for ad-hoc `[a-z][a-z0-9-]{3,}` style
  * regex tokenization that used to live in analysis.ts and search.ts.
@@ -34,17 +49,17 @@ function splitTermToTokens(term: string, tokens: string[]): void {
 export function tokenize(text: string): string[] {
   const lower = text.toLowerCase();
 
-  // Extract contiguous CJK blocks as whole phrases for trigram FTS matching.
-  // SQLite trigram tokenizer requires >= 3 characters to match, so individual
-  // CJK characters won't work — we must keep CJK sequences together.
+  // SQLite's trigram tokenizer requires terms of at least three characters.
+  // Sliding trigrams preserve local meaning while allowing partial matches.
   const cjkBlocks = lower.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]+/g) ?? [];
+  const cjkTokens = cjkSearchTokens(cjkBlocks);
 
   // Remove CJK chars so compromise handles only the ASCII portion.
   const asciiText = lower.replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]+/g, " ");
 
   try {
     const terms = nlp(asciiText).terms().out("array") as string[];
-    const tokens: string[] = [...cjkBlocks];
+    const tokens: string[] = [...cjkTokens];
     for (const term of terms) {
       splitTermToTokens(term, tokens);
     }
@@ -55,7 +70,7 @@ export function tokenize(text: string): string[] {
     // Fall through to the regex fallback below.
   }
   const asciiTokens = asciiText.match(/[a-z0-9][a-z0-9-]{1,}/g) ?? [];
-  return [...cjkBlocks, ...asciiTokens];
+  return [...cjkTokens, ...asciiTokens];
 }
 
 /**

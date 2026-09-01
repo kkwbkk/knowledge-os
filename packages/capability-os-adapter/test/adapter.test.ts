@@ -2,8 +2,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { parseGoldenQuestions } from "../src/golden-eval.js";
 import { admissionLeakPaths, CAPABILITY_OS_OBJECT_TYPES, loadCapabilitySchema, scanCapabilityVault } from "../src/index.js";
 import { writeSearchableProjection } from "../src/projection.js";
+import { buildCapabilityViewerArtifact } from "../src/viewer-artifact.js";
 
 const tempDirs: string[] = [];
 
@@ -175,5 +177,56 @@ describe("read-only Vault scan", () => {
     await fs.mkdir(unmarked);
     await fs.writeFile(path.join(unmarked, "keep.txt"), "do not replace", "utf8");
     await expect(writeSearchableProjection(snapshot, unmarked)).rejects.toThrow(/unmarked projection directory/i);
+  });
+});
+
+describe("M1-B derived contracts", () => {
+  it("parses the private golden question document as an executable contract", () => {
+    const questions = parseGoldenQuestions(`
+### Q01：Where is the workflow result note?
+
+**Top 3**：[[能力操作系统/知识/Workflow result]]；[[能力操作系统/方法/Review gate|gate]]
+
+### Q02: Which project used it?
+
+**Top 3**: [[能力操作系统/项目/Project Alpha#Evidence]]
+`);
+    expect(questions).toEqual([
+      { id: "Q01", question: "Where is the workflow result note?", expectedPaths: ["知识/Workflow result", "方法/Review gate"] },
+      { id: "Q02", question: "Which project used it?", expectedPaths: ["项目/Project Alpha"] }
+    ]);
+  });
+
+  it("builds a metadata-only Viewer artifact with canonical links and resolved one-hop relations", async () => {
+    const root = await createVault();
+    const scope = path.join(root, "能力操作系统");
+    await fs.writeFile(
+      path.join(scope, "accepted.md"),
+      note("kb-accepted", "knowledge", {
+        ingestStatus: "accepted",
+        title: "Accepted Knowledge",
+        relations: "grounded_in:\n  - '[[Method One]]'\n"
+      }),
+      "utf8"
+    );
+    await fs.writeFile(
+      path.join(scope, "method.md"),
+      note("kb-method", "playbook", { ingestStatus: "accepted", title: "Method One" }),
+      "utf8"
+    );
+    await fs.writeFile(path.join(scope, "pending.md"), note("kb-pending", "learning", { ingestStatus: "pending" }), "utf8");
+
+    const snapshot = await scanCapabilityVault({ vaultRoot: root });
+    const artifact = buildCapabilityViewerArtifact(snapshot, "2026-09-01T00:00:00.000Z");
+    const accepted = artifact.records.find((record) => record.id === "kb-accepted");
+
+    expect(artifact.objectTypes).toEqual(CAPABILITY_OS_OBJECT_TYPES);
+    expect(artifact.admissionLanes).toEqual(["searchable", "review-only", "excluded", "invalid"]);
+    expect(artifact.stats.byAdmission["review-only"]).toBe(1);
+    expect(accepted?.canonicalPath).toBe("能力操作系统/accepted.md");
+    expect(accepted?.obsidianUri).toContain("obsidian://open?");
+    expect(accepted?.relations[0]).toMatchObject({ kind: "grounded-in", targetId: "kb-method", targetTitle: "Method One" });
+    expect(JSON.stringify(artifact)).not.toContain("Body links to");
+    expect(JSON.stringify(artifact)).not.toContain('"frontmatter"');
   });
 });

@@ -3,6 +3,7 @@ import {
   fetchApprovalDetail,
   fetchApprovals,
   fetchCandidates,
+  fetchCapabilityOsArtifact,
   fetchDoctorReport,
   fetchGraphArtifact,
   fetchGraphReport,
@@ -12,6 +13,7 @@ import {
   type ViewerApprovalDetail,
   type ViewerApprovalSummary,
   type ViewerCandidateRecord,
+  type ViewerCapabilityOsArtifact,
   type ViewerDoctorReport,
   type ViewerGraphArtifact,
   type ViewerGraphReport,
@@ -26,6 +28,7 @@ export type WorkspaceState = {
   approvals: ViewerApprovalSummary[];
   approvalDetail: ViewerApprovalDetail | null;
   candidates: ViewerCandidateRecord[];
+  capabilityOs: ViewerCapabilityOsArtifact | null;
   memoryTasks: ViewerMemoryTaskSummary[];
   watchStatus: ViewerWatchStatus | null;
   lintFindings: ViewerLintFinding[];
@@ -35,6 +38,7 @@ export type WorkspaceState = {
     graph?: string;
     approval?: string;
     candidate?: string;
+    capabilityOs?: string;
     memory?: string;
     watch?: string;
     lint?: string;
@@ -63,6 +67,7 @@ const initialState: WorkspaceState = {
   approvals: [],
   approvalDetail: null,
   candidates: [],
+  capabilityOs: null,
   memoryTasks: [],
   watchStatus: null,
   lintFindings: [],
@@ -104,7 +109,7 @@ export function useWorkspaceStore() {
     inFlight.current = true;
     try {
       const errors: WorkspaceState["errors"] = {};
-      const [graph, approvals, candidates, memoryTasks, watchStatus, lintFindings, doctorReport] = await Promise.all([
+      const [graph, approvals, candidates, capabilityOs, memoryTasks, watchStatus, lintFindings, doctorReport] = await Promise.all([
         fetchGraphArtifact().catch(() => emptyGraph()),
         fetchApprovals().catch((error: unknown) => {
           errors.approval = error instanceof Error ? error.message : String(error);
@@ -113,6 +118,10 @@ export function useWorkspaceStore() {
         fetchCandidates().catch((error: unknown) => {
           errors.candidate = error instanceof Error ? error.message : String(error);
           return [] as ViewerCandidateRecord[];
+        }),
+        fetchCapabilityOsArtifact().catch((error: unknown) => {
+          errors.capabilityOs = error instanceof Error ? error.message : String(error);
+          return null;
         }),
         fetchMemoryTasks().catch((error: unknown) => {
           errors.memory = error instanceof Error ? error.message : String(error);
@@ -140,6 +149,7 @@ export function useWorkspaceStore() {
             graphReport,
             approvals,
             candidates,
+            capabilityOs,
             memoryTasks,
             watchStatus,
             lintFindings,

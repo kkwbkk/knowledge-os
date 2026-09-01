@@ -3,6 +3,7 @@ import path from "node:path";
 import { compileVault, ingestDirectory, initVault, type SearchResult, searchVault } from "@swarmvaultai/engine";
 import { type ScanCapabilityVaultOptions, scanCapabilityVault } from "./index.js";
 import { writeSearchableProjection } from "./projection.js";
+import { writeCapabilityViewerArtifact } from "./viewer-artifact.js";
 
 export interface RebuildCapabilityRuntimeOptions extends ScanCapabilityVaultOptions {
   runtimeRoot: string;
@@ -21,6 +22,8 @@ export interface RebuildCapabilityRuntimeResult {
   projectedObjects: number;
   ingestedObjects: number;
   compiledPages: number;
+  viewerRecords: number;
+  viewerArtifactPath: string;
   queryResults: SearchResult[];
 }
 
@@ -91,6 +94,7 @@ export async function rebuildCapabilityRuntime(options: RebuildCapabilityRuntime
     throw new Error(`SwarmVault ingestion failed for ${ingest.failed.length} projected object(s).`);
   }
   const compile = await compileVault(swarmRoot);
+  const viewerArtifact = await writeCapabilityViewerArtifact(snapshot, swarmRoot);
   const queryResults = options.query ? await searchVault(swarmRoot, options.query, options.queryLimit ?? 5) : [];
 
   return {
@@ -104,6 +108,8 @@ export async function rebuildCapabilityRuntime(options: RebuildCapabilityRuntime
     projectedObjects: projection.records.length,
     ingestedObjects: ingest.imported.length + ingest.updated.length,
     compiledPages: compile.pageCount,
+    viewerRecords: viewerArtifact.artifact.records.length,
+    viewerArtifactPath: viewerArtifact.artifactPath,
     queryResults
   };
 }
