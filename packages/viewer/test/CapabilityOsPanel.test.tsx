@@ -32,6 +32,7 @@ function record(overrides: Partial<ViewerCapabilityRecord> = {}): ViewerCapabili
     ingestStatus: "accepted",
     visibility: "private",
     updatedAt: "2026-09-01",
+    projectIds: ["project-alpha"],
     admission: "searchable",
     admissionReason: "Accepted content object.",
     relations: [{ field: "used_in", kind: "used-in", target: "Pending Learning", targetId: "kb-pending", targetTitle: "Pending Learning" }],
@@ -62,6 +63,7 @@ function artifact(): ViewerCapabilityOsArtifact {
       byType: { knowledge: 1, learning: 1 },
       byAdmission: { searchable: 1, "review-only": 1, excluded: 0, invalid: 0 }
     },
+    projects: [{ id: "project-alpha", title: "Project Alpha", count: 2 }],
     records: [record(), record({ id: "kb-pending", type: "learning", title: "Pending Learning", admission: "review-only", relations: [] })],
     evaluation: {
       questionCount: 30,
@@ -109,6 +111,8 @@ describe("CapabilityOsPanel", () => {
     const typeOptions = handle.container.querySelectorAll('select[aria-label="Filter object type"] option');
     const laneButtons = handle.container.querySelectorAll("button[aria-pressed]");
     expect(typeOptions).toHaveLength(14);
+    expect(handle.container.querySelectorAll('select[aria-label="Filter lifecycle status"] option')).toHaveLength(2);
+    expect(handle.container.querySelectorAll('select[aria-label="Filter related project"] option')).toHaveLength(2);
     expect(laneButtons).toHaveLength(4);
     expect(handle.container.textContent).toContain("Golden 30");
     expect(handle.container.textContent).toContain("traceable 100%");

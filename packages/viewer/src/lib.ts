@@ -376,6 +376,7 @@ export type ViewerCapabilityRecord = {
   ingestStatus?: string;
   visibility?: string;
   updatedAt?: string;
+  projectIds: string[];
   admission: ViewerCapabilityAdmission;
   admissionReason: string;
   relations: ViewerCapabilityRelation[];
@@ -420,6 +421,7 @@ export type ViewerCapabilityOsArtifact = {
     byType: Record<string, number>;
     byAdmission: Record<ViewerCapabilityAdmission, number>;
   };
+  projects: Array<{ id: string; title: string; count: number }>;
   records: ViewerCapabilityRecord[];
   evaluation: ViewerCapabilityEvaluationSummary | null;
 };

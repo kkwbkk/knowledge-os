@@ -225,6 +225,7 @@ describe("M1-B derived contracts", () => {
     expect(artifact.stats.byAdmission["review-only"]).toBe(1);
     expect(accepted?.canonicalPath).toBe("能力操作系统/accepted.md");
     expect(accepted?.obsidianUri).toContain("obsidian://open?");
+    expect(accepted?.projectIds).toEqual([]);
     expect(accepted?.relations[0]).toMatchObject({ kind: "grounded-in", targetId: "kb-method", targetTitle: "Method One" });
     expect(JSON.stringify(artifact)).not.toContain("Body links to");
     expect(JSON.stringify(artifact)).not.toContain('"frontmatter"');

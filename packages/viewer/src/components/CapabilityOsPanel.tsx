@@ -85,6 +85,8 @@ export function CapabilityOsPanel({ artifact, error }: CapabilityOsPanelProps) {
   const [textFilter, setTextFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [laneFilter, setLaneFilter] = useState<ViewerCapabilityAdmission | "all">("all");
+  const [lifecycleFilter, setLifecycleFilter] = useState("all");
+  const [projectFilter, setProjectFilter] = useState("all");
   const [selectedId, setSelectedId] = useState("");
 
   const recordById = useMemo(() => new Map(artifact?.records.map((record) => [record.id, record]) ?? []), [artifact]);
@@ -93,11 +95,20 @@ export function CapabilityOsPanel({ artifact, error }: CapabilityOsPanelProps) {
     return (artifact?.records ?? []).filter((record) => {
       if (typeFilter !== "all" && record.type !== typeFilter) return false;
       if (laneFilter !== "all" && record.admission !== laneFilter) return false;
+      if (lifecycleFilter !== "all" && record.lifecycleStatus !== lifecycleFilter) return false;
+      if (projectFilter !== "all" && !record.projectIds.includes(projectFilter)) return false;
       if (!normalized) return true;
       return `${record.title}\n${record.id}\n${record.sourcePath}`.toLocaleLowerCase().includes(normalized);
     });
-  }, [artifact, laneFilter, textFilter, typeFilter]);
+  }, [artifact, laneFilter, lifecycleFilter, projectFilter, textFilter, typeFilter]);
   const selected = recordById.get(selectedId) ?? filtered[0] ?? null;
+  const lifecycleOptions = useMemo(
+    () =>
+      [
+        ...new Set((artifact?.records ?? []).map((record) => record.lifecycleStatus).filter((value): value is string => Boolean(value)))
+      ].sort(),
+    [artifact]
+  );
 
   if (error) return <p className="text-error">{error}</p>;
   if (!artifact) return <p className="text-muted text-sm">No Capability OS runtime is connected.</p>;
@@ -162,6 +173,32 @@ export function CapabilityOsPanel({ artifact, error }: CapabilityOsPanelProps) {
           {artifact.objectTypes.map((type) => (
             <option key={type} value={type}>
               {type} ({artifact.stats.byType[type] ?? 0})
+            </option>
+          ))}
+        </select>
+        <select
+          className="input"
+          value={lifecycleFilter}
+          onChange={(event) => setLifecycleFilter(event.target.value)}
+          aria-label="Filter lifecycle status"
+        >
+          <option value="all">All lifecycle states</option>
+          {lifecycleOptions.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
+        <select
+          className="input"
+          value={projectFilter}
+          onChange={(event) => setProjectFilter(event.target.value)}
+          aria-label="Filter related project"
+        >
+          <option value="all">All projects</option>
+          {artifact.projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.title} ({project.count})
             </option>
           ))}
         </select>

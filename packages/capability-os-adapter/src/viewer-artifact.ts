@@ -31,6 +31,7 @@ export interface CapabilityViewerRecord {
   ingestStatus?: string;
   visibility?: string;
   updatedAt?: string;
+  projectIds: string[];
   admission: AdmissionLane;
   admissionReason: string;
   relations: CapabilityViewerRelation[];
@@ -49,6 +50,7 @@ export interface CapabilityViewerArtifact {
   objectTypes: readonly CapabilityObjectType[];
   admissionLanes: readonly AdmissionLane[];
   stats: CapabilityVaultSnapshot["stats"];
+  projects: Array<{ id: string; title: string; count: number }>;
   records: CapabilityViewerRecord[];
 }
 
@@ -62,11 +64,18 @@ function withoutMarkdownExtension(value: string): string {
 }
 
 function normalizedLookupKey(value: string): string {
-  return withoutMarkdownExtension(value)
+  const target = value.replace(/^\[\[/, "").replace(/\]\]$/, "").split("|")[0].split("#")[0];
+  return withoutMarkdownExtension(target)
     .replace(/^\/+/, "")
     .replace(/^能力操作系统\//, "")
     .trim()
     .toLocaleLowerCase();
+}
+
+function stringValues(value: unknown): string[] {
+  if (typeof value === "string") return value.trim() ? [value.trim()] : [];
+  if (Array.isArray(value)) return value.flatMap((entry) => stringValues(entry));
+  return [];
 }
 
 function resolverFor(records: readonly CapabilityRecord[]): (target: string) => CapabilityRecord | undefined {
@@ -106,6 +115,20 @@ export function buildCapabilityViewerArtifact(
 ): CapabilityViewerArtifact {
   const vaultName = path.basename(snapshot.vaultRoot);
   const resolveTarget = resolverFor(snapshot.records);
+  const projectIdsFor = (record: CapabilityRecord): string[] => {
+    const projectIds = new Set<string>();
+    if (record.type === "project" && record.id) projectIds.add(record.id);
+    const references = [...stringValues(record.frontmatter.project_id), ...stringValues(record.frontmatter.related_projects)];
+    for (const reference of references) {
+      const project = resolveTarget(reference);
+      if (project?.type === "project" && project.id) projectIds.add(project.id);
+    }
+    for (const relation of record.relations) {
+      const project = resolveTarget(relation.target);
+      if (project?.type === "project" && project.id) projectIds.add(project.id);
+    }
+    return [...projectIds].sort((left, right) => left.localeCompare(right));
+  };
   const records = snapshot.records.map((record) => {
     const canonicalPath = path.posix.join(snapshot.scopePath, record.relativePath);
     const fallbackId = `invalid:${record.contentHash.slice(0, 16)}`;
@@ -120,6 +143,7 @@ export function buildCapabilityViewerArtifact(
       ingestStatus: stringField(record, "ingest_status"),
       visibility: stringField(record, "visibility"),
       updatedAt: stringField(record, "updated"),
+      projectIds: projectIdsFor(record),
       admission: record.admission.lane,
       admissionReason: record.admission.reason,
       relations: record.relations.map((relation) => {
@@ -134,6 +158,14 @@ export function buildCapabilityViewerArtifact(
       issues: record.issues.map(({ code, field, message }) => ({ code, field, message }))
     } satisfies CapabilityViewerRecord;
   });
+  const projects = snapshot.records
+    .filter((record) => record.type === "project" && record.id)
+    .map((record) => ({
+      id: record.id!,
+      title: record.title,
+      count: records.filter((candidate) => candidate.projectIds.includes(record.id!)).length
+    }))
+    .sort((left, right) => left.title.localeCompare(right.title));
 
   return {
     kind: "capability-os-viewer",
@@ -147,6 +179,7 @@ export function buildCapabilityViewerArtifact(
     objectTypes: CAPABILITY_OS_OBJECT_TYPES,
     admissionLanes: ["searchable", "review-only", "excluded", "invalid"],
     stats: snapshot.stats,
+    projects,
     records: records.sort((left, right) => left.sourcePath.localeCompare(right.sourcePath))
   };
 }
