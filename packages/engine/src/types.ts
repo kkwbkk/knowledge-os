@@ -406,6 +406,8 @@ export interface VaultConfig {
   };
   graph?: {
     communityResolution?: number;
+    /** Disable randomized Louvain traversal so rebuilds produce stable community IDs and pages. */
+    deterministicCommunities?: boolean;
     /**
      * Minimum IDF weight a similarity feature must carry to contribute to an
      * inferred `semantically_similar_to` edge. Features below the floor are

@@ -1747,7 +1747,7 @@ function communityCohesion(graph: Graph, memberIds: string[]): number {
   return possibleEdges > 0 ? internalEdges / possibleEdges : 0;
 }
 
-function splitCommunityMembers(graph: Graph, memberIds: string[], resolution: number): string[][] {
+function splitCommunityMembers(graph: Graph, memberIds: string[], resolution: number, deterministic: boolean): string[][] {
   if (memberIds.length <= 1) {
     return [memberIds];
   }
@@ -1766,7 +1766,7 @@ function splitCommunityMembers(graph: Graph, memberIds: string[], resolution: nu
   if (subgraph.size === 0) {
     return memberIds.map((memberId) => [memberId]);
   }
-  const mapping: Record<string, number> = louvain(subgraph, { resolution });
+  const mapping: Record<string, number> = louvain(subgraph, { resolution, randomWalk: !deterministic });
   const groups = new Map<number, string[]>();
   for (const memberId of memberIds) {
     const groupId = mapping[memberId] ?? -1;
@@ -1835,7 +1835,7 @@ function connectProjectedCoOccurrences(nodes: GraphNode[], connect: (left: strin
 function deriveGraphMetrics(
   nodes: GraphNode[],
   edges: GraphEdge[],
-  options?: { resolution?: number }
+  options?: { resolution?: number; deterministic?: boolean }
 ): {
   nodes: GraphNode[];
   communities: GraphArtifact["communities"];
@@ -1879,7 +1879,9 @@ function deriveGraphMetrics(
   /* Louvain requires at least one edge; fall back to singleton communities
      for disconnected graphs (e.g. single-source vaults). */
   const effectiveResolution = options?.resolution ?? autoResolution(louvainGraph.order, louvainGraph.size);
-  const louvainMapping: Record<string, number> = louvainGraph.size > 0 ? louvain(louvainGraph, { resolution: effectiveResolution }) : {};
+  const deterministic = options?.deterministic ?? false;
+  const louvainMapping: Record<string, number> =
+    louvainGraph.size > 0 ? louvain(louvainGraph, { resolution: effectiveResolution, randomWalk: !deterministic }) : {};
 
   /* Group nodes by their Louvain community number.  Isolated nodes (no edges)
      each get their own singleton community. */
@@ -1897,7 +1899,7 @@ function deriveGraphMetrics(
   let communityGroups: string[][] = [];
   for (const memberIds of groupByCommunity.values()) {
     if (memberIds.length > maxCommunitySize) {
-      communityGroups.push(...splitCommunityMembers(louvainGraph, memberIds, effectiveResolution));
+      communityGroups.push(...splitCommunityMembers(louvainGraph, memberIds, effectiveResolution, deterministic));
     } else {
       communityGroups.push(memberIds);
     }
@@ -1908,7 +1910,7 @@ function deriveGraphMetrics(
       memberIds.length >= COMMUNITY_LOW_COHESION_MIN_SIZE &&
       communityCohesion(louvainGraph, memberIds) < COMMUNITY_LOW_COHESION_THRESHOLD
     ) {
-      const split = splitCommunityMembers(louvainGraph, memberIds, effectiveResolution);
+      const split = splitCommunityMembers(louvainGraph, memberIds, effectiveResolution, deterministic);
       return split.length > 1 ? split : [memberIds];
     }
     return [memberIds];
@@ -2182,7 +2184,7 @@ function buildGraph(
   sourceProjects: Record<string, string | null>,
   _codeIndex: CodeIndexArtifact,
   memoryTasks: AgentMemoryTask[] = [],
-  options?: { communityResolution?: number; config?: VaultConfig | null }
+  options?: { communityResolution?: number; deterministicCommunities?: boolean; config?: VaultConfig | null }
 ): GraphArtifact {
   const manifestsById = new Map(manifests.map((manifest) => [manifest.sourceId, manifest]));
   const goPackageSymbolLookups = buildGoPackageSymbolLookups(analyses, manifestsById);
@@ -2658,7 +2660,10 @@ function buildGraph(
       similarityEdgeCap: repoDefaults.similarityEdgeCap
     }
   );
-  const metrics = deriveGraphMetrics(graphNodes, enriched.edges, { resolution: options?.communityResolution });
+  const metrics = deriveGraphMetrics(graphNodes, enriched.edges, {
+    resolution: options?.communityResolution,
+    deterministic: options?.deterministicCommunities
+  });
   const finalNodes = applyNormLabel(metrics.nodes);
   const finalEdges = pruneDanglingEdges(finalNodes, enriched.edges);
   const finalHyperedges = (enriched.hyperedges ?? []).filter((hyperedge) => {
@@ -3318,6 +3323,7 @@ async function syncVaultArtifacts(
   records.push(...input.memoryRecords);
   const structuralGraph = buildGraph(input.manifests, input.analyses, basePages, input.sourceProjects, input.codeIndex, input.memoryTasks, {
     communityResolution: config.graph?.communityResolution,
+    deterministicCommunities: config.graph?.deterministicCommunities,
     config
   });
   const contradictions = detectContradictions(input.analyses);
@@ -3344,7 +3350,8 @@ async function syncVaultArtifacts(
             left.id.localeCompare(right.id)
           );
           const metrics = deriveGraphMetrics(resetGraphNodeMetrics(structuralGraph.nodes), edges, {
-            resolution: config.graph?.communityResolution
+            resolution: config.graph?.communityResolution,
+            deterministic: config.graph?.deterministicCommunities
           });
           return {
             ...structuralGraph,
@@ -6405,7 +6412,8 @@ export async function refreshGraphClusters(rootDir: string, options: { resolutio
   }
 
   const metrics = deriveGraphMetrics(resetGraphNodeMetrics(graph.nodes), graph.edges, {
-    resolution: options.resolution ?? config.graph?.communityResolution
+    resolution: options.resolution ?? config.graph?.communityResolution,
+    deterministic: config.graph?.deterministicCommunities
   });
   const communities = metrics.communities ?? [];
   const nodes = applyNormLabel(metrics.nodes);

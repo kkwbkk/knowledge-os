@@ -1,0 +1,41 @@
+{
+  "name": "@knowledge-os/capability-os-adapter",
+  "version": "0.1.0",
+  "description": "Read-only adapter from the Capability OS Obsidian contract to normalized SwarmVault-ready records.",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    }
+  },
+  "bin": {
+    "capability-os-scan": "dist/cli.js",
+    "capability-os-rebuild": "dist/rebuild-cli.js"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts src/runtime.ts src/rebuild-cli.ts --format esm --dts --clean",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@swarmvaultai/engine": "workspace:*",
+    "gray-matter": "^4.0.3",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "tsup": "^8.5.0",
+    "vitest": "^3.2.4"
+  }
+}

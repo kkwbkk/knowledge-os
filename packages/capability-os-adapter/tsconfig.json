@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "dist",
+    "paths": {
+      "@swarmvaultai/engine": ["../engine/src/index.ts"]
+    }
+  },
+  "include": ["src", "test"]
+}

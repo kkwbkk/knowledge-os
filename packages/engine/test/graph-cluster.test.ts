@@ -21,6 +21,10 @@ describe("refreshGraphClusters", () => {
   it("recomputes communities and graph report artifacts from an existing graph without recompile", async () => {
     const rootDir = await createTempWorkspace();
     await initVault(rootDir);
+    const configPath = path.join(rootDir, "swarmvault.config.json");
+    const config = JSON.parse(await fs.readFile(configPath, "utf8"));
+    config.graph = { ...(config.graph ?? {}), deterministicCommunities: true };
+    await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
     await fs.writeFile(
       path.join(rootDir, "alpha.ts"),
       "export function alpha() { return beta(); }\nfunction beta() { return 'b'; }\n",
@@ -57,5 +61,11 @@ describe("refreshGraphClusters", () => {
     expect(refreshed.nodes.some((node) => typeof node.degree === "number")).toBe(true);
     await expect(fs.access(path.join(rootDir, "wiki", "graph", "report.json"))).resolves.toBeUndefined();
     await expect(fs.access(path.join(rootDir, "wiki", "graph", "report.md"))).resolves.toBeUndefined();
+
+    const firstSignature = refreshed.communities?.map((community) => ({ id: community.id, nodeIds: community.nodeIds })) ?? [];
+    await refreshGraphClusters(rootDir, { resolution: 1 });
+    const rebuilt = JSON.parse(await fs.readFile(graphPath, "utf8")) as GraphArtifact;
+    const secondSignature = rebuilt.communities?.map((community) => ({ id: community.id, nodeIds: community.nodeIds })) ?? [];
+    expect(secondSignature).toEqual(firstSignature);
   });
 });

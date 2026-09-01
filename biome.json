@@ -38,6 +38,7 @@
       "!**/dist",
       "!.live-smoke-artifacts",
       "!.oss-corpus-artifacts",
+      "!.knowledge-os-runtime",
       "!node_modules",
       "!.next",
       "!out",

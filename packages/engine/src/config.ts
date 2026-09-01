@@ -223,6 +223,7 @@ const vaultConfigSchema = z.object({
   graph: z
     .object({
       communityResolution: z.number().positive().optional(),
+      deterministicCommunities: z.boolean().optional(),
       similarityIdfFloor: z.number().min(0).optional(),
       similarityEdgeCap: z.number().int().positive().optional(),
       godNodeLimit: z.number().int().positive().optional(),
