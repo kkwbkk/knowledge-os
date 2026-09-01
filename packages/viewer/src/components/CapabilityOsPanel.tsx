@@ -87,9 +87,10 @@ export function CapabilityOsPanel({ artifact, error }: CapabilityOsPanelProps) {
   const [laneFilter, setLaneFilter] = useState<ViewerCapabilityAdmission | "all">("all");
   const [lifecycleFilter, setLifecycleFilter] = useState("all");
   const [projectFilter, setProjectFilter] = useState("all");
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedPath, setSelectedPath] = useState("");
 
   const recordById = useMemo(() => new Map(artifact?.records.map((record) => [record.id, record]) ?? []), [artifact]);
+  const recordByPath = useMemo(() => new Map(artifact?.records.map((record) => [record.canonicalPath, record]) ?? []), [artifact]);
   const filtered = useMemo(() => {
     const normalized = textFilter.trim().toLocaleLowerCase();
     return (artifact?.records ?? []).filter((record) => {
@@ -101,7 +102,11 @@ export function CapabilityOsPanel({ artifact, error }: CapabilityOsPanelProps) {
       return `${record.title}\n${record.id}\n${record.sourcePath}`.toLocaleLowerCase().includes(normalized);
     });
   }, [artifact, laneFilter, lifecycleFilter, projectFilter, textFilter, typeFilter]);
-  const selected = recordById.get(selectedId) ?? filtered[0] ?? null;
+  const selected = recordByPath.get(selectedPath) ?? filtered[0] ?? null;
+  const selectRelationTarget = (id: string) => {
+    const target = recordById.get(id);
+    if (target) setSelectedPath(target.canonicalPath);
+  };
   const lifecycleOptions = useMemo(
     () =>
       [
@@ -212,11 +217,11 @@ export function CapabilityOsPanel({ artifact, error }: CapabilityOsPanelProps) {
           {filtered.map((record) => (
             <button
               type="button"
-              key={record.id}
-              className={`capability-object${selected?.id === record.id ? " is-selected" : ""}`}
-              onClick={() => setSelectedId(record.id)}
+              key={record.canonicalPath}
+              className={`capability-object${selected?.canonicalPath === record.canonicalPath ? " is-selected" : ""}`}
+              onClick={() => setSelectedPath(record.canonicalPath)}
               role="option"
-              aria-selected={selected?.id === record.id}
+              aria-selected={selected?.canonicalPath === record.canonicalPath}
             >
               <span className="card-row">
                 <span className="label">{record.type}</span>
@@ -228,7 +233,7 @@ export function CapabilityOsPanel({ artifact, error }: CapabilityOsPanelProps) {
           ))}
           {!filtered.length ? <p className="text-muted text-sm">No canonical objects match these filters.</p> : null}
         </div>
-        {selected ? <CapabilityDetail record={selected} onSelectTarget={setSelectedId} /> : null}
+        {selected ? <CapabilityDetail record={selected} onSelectTarget={selectRelationTarget} /> : null}
       </div>
     </div>
   );

@@ -64,7 +64,18 @@ function artifact(): ViewerCapabilityOsArtifact {
       byAdmission: { searchable: 1, "review-only": 1, excluded: 0, invalid: 0 }
     },
     projects: [{ id: "project-alpha", title: "Project Alpha", count: 2 }],
-    records: [record(), record({ id: "kb-pending", type: "learning", title: "Pending Learning", admission: "review-only", relations: [] })],
+    records: [
+      record(),
+      record({
+        id: "kb-pending",
+        type: "learning",
+        title: "Pending Learning",
+        sourcePath: "收藏激活/内容模块/pending.md",
+        canonicalPath: "能力操作系统/收藏激活/内容模块/pending.md",
+        admission: "review-only",
+        relations: []
+      })
+    ],
     evaluation: {
       questionCount: 30,
       expectedQuestionCount: 30,
@@ -84,11 +95,11 @@ function artifact(): ViewerCapabilityOsArtifact {
   };
 }
 
-function render() {
+function render(artifactValue = artifact()) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(<CapabilityOsPanel artifact={artifact()} />));
+  act(() => root.render(<CapabilityOsPanel artifact={artifactValue} />));
   return {
     container,
     cleanup: () => {
@@ -136,6 +147,44 @@ describe("CapabilityOsPanel", () => {
     );
     act(() => relation?.click());
     expect(handle.container.querySelector(".capability-detail")?.textContent).toContain("kb-pending");
+    handle.cleanup();
+  });
+
+  it("removes duplicate-id templates cleanly when a project filter is applied", () => {
+    const value = artifact();
+    value.records.push(
+      record({
+        id: "{{id}}",
+        title: "{{title}}",
+        sourcePath: "模板/a.md",
+        canonicalPath: "能力操作系统/模板/a.md",
+        projectIds: [],
+        admission: "excluded",
+        relations: []
+      }),
+      record({
+        id: "{{id}}",
+        title: "{{title}}",
+        sourcePath: "模板/b.md",
+        canonicalPath: "能力操作系统/模板/b.md",
+        projectIds: [],
+        admission: "excluded",
+        relations: []
+      })
+    );
+    const handle = render(value);
+    expect(handle.container.querySelectorAll('[role="listbox"] [role="option"]')).toHaveLength(4);
+
+    const project = handle.container.querySelector<HTMLSelectElement>('select[aria-label="Filter related project"]');
+    act(() => {
+      if (!project) return;
+      project.value = "project-alpha";
+      project.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(handle.container.textContent).toContain("Showing 2 of 4");
+    expect(handle.container.querySelectorAll('[role="listbox"] [role="option"]')).toHaveLength(2);
+    expect(handle.container.textContent).not.toContain("{{title}}");
     handle.cleanup();
   });
 });
