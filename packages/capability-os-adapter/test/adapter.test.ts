@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { rerankCapabilityRecords } from "../src/domain-rerank.js";
 import { parseGoldenQuestions } from "../src/golden-eval.js";
 import { admissionLeakPaths, CAPABILITY_OS_OBJECT_TYPES, loadCapabilitySchema, scanCapabilityVault } from "../src/index.js";
 import { writeSearchableProjection } from "../src/projection.js";
@@ -232,5 +233,44 @@ describe("M1-B derived contracts", () => {
     expect(accepted?.relations[0]).toMatchObject({ kind: "grounded-in", targetId: "kb-method", targetTitle: "Method One" });
     expect(JSON.stringify(artifact)).not.toContain("Body links to");
     expect(JSON.stringify(artifact)).not.toContain('"frontmatter"');
+  });
+});
+
+describe("M1-C deterministic domain reranking", () => {
+  it("uses object intent without allowing non-searchable records into the result", async () => {
+    const root = await createVault();
+    const scope = path.join(root, "能力操作系统");
+    await fs.writeFile(path.join(scope, "project.md"), note("project-store", "project", { title: "门店数字工具采用项目" }), "utf8");
+    await fs.writeFile(
+      path.join(scope, "method.md"),
+      note("method-value", "playbook", { ingestStatus: "accepted", title: "复杂技术到购买理由方法" }),
+      "utf8"
+    );
+    await fs.writeFile(
+      path.join(scope, "pending.md"),
+      note("pending-perfect", "learning", { ingestStatus: "pending", title: "门店认可数字工具却不使用" }),
+      "utf8"
+    );
+    await fs.writeFile(path.join(scope, "system.md"), note("system-noise", "system", { title: "项目与方法实施系统说明" }), "utf8");
+    const snapshot = await scanCapabilityVault({ vaultRoot: root });
+
+    const projectResults = rerankCapabilityRecords("哪个项目记录了门店数字工具不使用？", snapshot);
+    const methodResults = rerankCapabilityRecords("复杂技术怎样形成购买理由，有什么方法？", snapshot);
+
+    expect(projectResults[0]).toMatchObject({ id: "project-store", type: "project" });
+    expect(methodResults[0]).toMatchObject({ id: "method-value", type: "playbook" });
+    expect(projectResults.some((result) => result.id === "pending-perfect")).toBe(false);
+  });
+
+  it("uses canonical paths as stable baseline identities", async () => {
+    const root = await createVault();
+    const scope = path.join(root, "能力操作系统");
+    await fs.writeFile(path.join(scope, "alpha.md"), note("alpha", "project", { title: "Alpha" }), "utf8");
+    await fs.writeFile(path.join(scope, "beta.md"), note("beta", "project", { title: "Beta" }), "utf8");
+    const snapshot = await scanCapabilityVault({ vaultRoot: root });
+
+    const results = rerankCapabilityRecords("项目", snapshot, { baseline: [{ sourcePath: "beta.md" }], topK: 2 });
+
+    expect(results.map((result) => result.id)).toEqual(["beta", "alpha"]);
   });
 });

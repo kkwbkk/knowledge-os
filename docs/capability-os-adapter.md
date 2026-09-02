@@ -51,7 +51,20 @@ node packages/capability-os-adapter/dist/eval-cli.js \
 
 The CLI prints aggregate metrics only. Its automated gate checks question-set completeness, canonical-source traceability, expected-link existence, and admission leakage. Expected-reference matches are a retrieval diagnostic, not a claim that the results are useful; usefulness remains a user-rated field.
 
-To inspect the derived workspace, run `swarmvault graph serve` from `.knowledge-os-runtime/swarmvault`. The `Knowledge OS` tab links each record back to the canonical Vault through an `obsidian://` URI.
+### Experimental domain reranker and blinded comparison
+
+The evaluator also runs an optional deterministic reranker over the same `searchable` snapshot. It uses generic lexical, object-type, lifecycle, project, and one-hop-relation signals. The ranking function is never given `expectedPaths`; expected references are read only after both rankings have finished.
+
+Every evaluation writes two separate ignored artifacts:
+
+- `state/capability-os-blind-evaluation.json` contains only the question and anonymized left/right Top 3 groups for the local Viewer.
+- `state/capability-os-blind-key.json` contains the sealed baseline/candidate assignment and is not exposed by the local HTTP server.
+
+The Viewer stores only the user's anonymous choice (`left`, `right`, `both`, or `neither`) in local browser storage. It does not write the choice or either ranking back to the canonical Vault.
+
+The first frozen M1-C experiment did not meet its automatic holdout gate: the holdout improved from 5/10 to 7/10, below the required +3-question lift. The candidate therefore remains experimental and is not the default search path. This recorded stop is deliberate: the holdout is not used for a second round of tuning.
+
+To inspect the derived workspace, run `swarmvault graph serve` from `.knowledge-os-runtime/swarmvault`. The `Knowledge OS` tab links each record back to the canonical Vault through an `obsidian://` URI. Its `Blind Test 10` sub-tab can display the anonymous local comparison without exposing the sealed assignment key.
 
 ## Upstream boundary
 

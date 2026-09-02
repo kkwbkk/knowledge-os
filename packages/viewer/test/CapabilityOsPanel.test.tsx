@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CapabilityOsPanel } from "../src/components/CapabilityOsPanel";
-import type { ViewerCapabilityOsArtifact, ViewerCapabilityRecord } from "../src/lib";
+import type { ViewerCapabilityBlindArtifact, ViewerCapabilityOsArtifact, ViewerCapabilityRecord } from "../src/lib";
 
 const objectTypes = [
   "source",
@@ -95,11 +95,46 @@ function artifact(): ViewerCapabilityOsArtifact {
   };
 }
 
-function render(artifactValue = artifact()) {
+function blindArtifact(): ViewerCapabilityBlindArtifact {
+  return {
+    kind: "capability-os-blind-evaluation",
+    version: 1,
+    generatedAt: "2026-09-02T00:00:00.000Z",
+    sourceHash: "1234567890abcdef",
+    questionCount: 1,
+    choices: ["left", "right", "both", "neither"],
+    questions: [
+      {
+        id: "Q03",
+        question: "Which result group is more useful?",
+        left: [
+          {
+            id: "kb-left",
+            title: "Left Result",
+            type: "learning",
+            sourcePath: "知识/left.md",
+            obsidianUri: "obsidian://open?vault=Vault&file=left"
+          }
+        ],
+        right: [
+          {
+            id: "kb-right",
+            title: "Right Result",
+            type: "playbook",
+            sourcePath: "方法/right.md",
+            obsidianUri: "obsidian://open?vault=Vault&file=right"
+          }
+        ]
+      }
+    ]
+  };
+}
+
+function render(artifactValue = artifact(), blindArtifactValue: ViewerCapabilityBlindArtifact | null = null) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  act(() => root.render(<CapabilityOsPanel artifact={artifactValue} />));
+  act(() => root.render(<CapabilityOsPanel artifact={artifactValue} blindArtifact={blindArtifactValue} />));
   return {
     container,
     cleanup: () => {
@@ -113,6 +148,7 @@ beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.localStorage.clear();
   document.body.replaceChildren();
 });
 
@@ -185,6 +221,29 @@ describe("CapabilityOsPanel", () => {
     expect(handle.container.textContent).toContain("Showing 2 of 4");
     expect(handle.container.querySelectorAll('[role="listbox"] [role="option"]')).toHaveLength(2);
     expect(handle.container.textContent).not.toContain("{{title}}");
+    handle.cleanup();
+  });
+
+  it("offers a blinded comparison and stores only the local choice", () => {
+    const handle = render(artifact(), blindArtifact());
+    const blindTab = Array.from(handle.container.querySelectorAll<HTMLButtonElement>('[role="tab"]')).find((button) =>
+      button.textContent?.includes("盲测")
+    );
+    act(() => blindTab?.click());
+
+    expect(handle.container.textContent).toContain("Which result group is more useful?");
+    expect(handle.container.textContent).toContain("Left Result");
+    expect(handle.container.textContent).toContain("Right Result");
+    const neither = Array.from(handle.container.querySelectorAll<HTMLButtonElement>(".blind-choice-grid button")).find(
+      (button) => button.textContent === "两边都不好"
+    );
+    act(() => neither?.click());
+
+    expect(handle.container.textContent).toContain("1/1");
+    expect(handle.container.textContent).toContain("1 题已完成");
+    const persisted = JSON.parse(window.localStorage.getItem("swarmvault:capability-blind:v1:1234567890abcdef") ?? "{}");
+    expect(persisted.answers).toEqual({ Q03: "neither" });
+    expect(JSON.stringify(persisted)).not.toContain("candidate");
     handle.cleanup();
   });
 });

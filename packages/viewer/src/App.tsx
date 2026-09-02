@@ -85,6 +85,7 @@ export function App() {
     approvalDetail,
     candidates,
     capabilityOs,
+    capabilityBlind,
     memoryTasks,
     watchStatus,
     lintFindings,
@@ -895,7 +896,14 @@ export function App() {
           activeTab={workflowTab}
           onTabChange={setWorkflowTab}
         >
-          {workflowTab === "capability" && <CapabilityOsPanel artifact={capabilityOs} error={errors.capabilityOs} />}
+          {workflowTab === "capability" && (
+            <CapabilityOsPanel
+              artifact={capabilityOs}
+              blindArtifact={capabilityBlind}
+              error={errors.capabilityOs}
+              blindError={errors.capabilityBlind}
+            />
+          )}
           {workflowTab === "approvals" && (
             <ApprovalQueue
               approvals={approvals}

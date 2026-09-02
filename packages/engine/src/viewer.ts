@@ -272,6 +272,25 @@ export async function startGraphServer(
         return;
       }
 
+      if (url.pathname === "/api/capability-os/blind-evaluation") {
+        const artifactPath = path.join(paths.stateDir, "capability-os-blind-evaluation.json");
+        const artifact = await readJsonFile<Record<string, unknown>>(artifactPath).catch(() => null);
+        if (!artifact) {
+          response.writeHead(404, { "content-type": "application/json" });
+          response.end(JSON.stringify({ error: "Capability OS blind evaluation not found. Run the M1-C evaluation first." }));
+          return;
+        }
+        response.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+        response.end(JSON.stringify(artifact));
+        return;
+      }
+
+      if (url.pathname === "/api/capability-os/blind-key") {
+        response.writeHead(404, { "content-type": "application/json", "cache-control": "no-store" });
+        response.end(JSON.stringify({ error: "Not found." }));
+        return;
+      }
+
       if (url.pathname === "/api/graph/query") {
         const question = url.searchParams.get("q") ?? "";
         const traversal = url.searchParams.get("traversal");

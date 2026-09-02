@@ -1673,6 +1673,19 @@ a:hover {
   gap: 2px;
 }
 
+.capability-view-switch {
+  display: flex;
+  gap: var(--sp-1);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--c-border);
+}
+
+.capability-view-switch .btn.is-active,
+.blind-question-nav .btn.is-active {
+  border-color: var(--c-border-focus-strong);
+  background: var(--c-accent-bg-strong);
+}
+
 .eyebrow {
   color: var(--c-text-muted);
   font-size: var(--text-2xs);
@@ -1746,6 +1759,124 @@ a:hover {
 
 .capability-eval.is-passing { border-left-color: var(--c-text-success); }
 .capability-eval.is-warning { border-left-color: var(--c-text-warning); }
+
+.capability-blind-test {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.blind-test-intro,
+.blind-test-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.blind-test-intro > div {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.blind-question-nav {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(28px, 1fr));
+  gap: var(--sp-1);
+}
+
+.blind-question-nav .btn {
+  justify-content: center;
+  min-width: 0;
+  padding: 0;
+  color: var(--c-text-muted);
+}
+
+.blind-question-nav .btn.is-complete {
+  color: var(--c-text-success);
+}
+
+.blind-question-heading {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-3) 0 var(--sp-1);
+}
+
+.blind-question-heading h3 {
+  color: var(--c-text-primary);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+.blind-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.blind-result-group {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-inset);
+}
+
+.blind-result-group h4 {
+  font-size: var(--text-sm);
+}
+
+.blind-result-group ol {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding-left: 20px;
+}
+
+.blind-result-group li {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding-left: var(--sp-1);
+  color: var(--c-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.blind-result-group li::marker {
+  color: var(--c-text-muted);
+  font-family: var(--font-mono);
+}
+
+.blind-result-group a {
+  overflow: hidden;
+  color: var(--c-text-primary);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blind-result-group .text-mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.blind-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.blind-choice-grid .btn {
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--sp-2);
+}
 
 .capability-browser {
   display: grid;
@@ -1902,6 +2033,9 @@ a:hover {
 
 @media (max-width: 1320px) {
   .capability-browser { grid-template-columns: 1fr; }
+  .blind-comparison { grid-template-columns: 1fr; }
+  .blind-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .blind-test-footer { align-items: flex-start; flex-direction: column; }
 }
 
 .checkbox-cell {

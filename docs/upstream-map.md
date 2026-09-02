@@ -8,6 +8,7 @@
 - Fork: `kkwbkk/knowledge-os`
 - Adapter baseline branch: `feat/capability-os-adapter`
 - Viewer/evaluation branch: `feat/capability-os-viewer`
+- Experimental reranker branch: `feat/capability-os-domain-rerank`
 
 The unmodified baseline passed the full upstream test suite before Capability OS changes were added.
 
@@ -22,5 +23,8 @@ The unmodified baseline passed the full upstream test suite before Capability OS
 | Engine CJK query trigrams | Make natural-language Chinese queries match partial phrases in the existing SQLite trigram index | Yes, small tokenizer correction | Upstream the correction or remove it when upstream ships equivalent CJK query segmentation |
 | Engine `/api/capability-os` endpoint | Serve an optional local metadata artifact and evaluation summary | Yes, one optional read-only endpoint | Replace with an upstream extension registry or a generic local-artifact endpoint |
 | Viewer `Knowledge OS` tab | Inspect 13 types, four admission lanes, canonical sources, evaluation safety, and one-hop typed relations | Yes, isolated component plus workspace fetch | Move into a viewer plugin slot when upstream exposes one |
+| Adapter deterministic domain reranker | Compare generic lexical, object-type, lifecycle, project, and one-hop-relation signals without reading expected answers | No | Keep disabled or remove the isolated module; the default retrieval remains unchanged |
+| Engine `/api/capability-os/blind-evaluation` endpoint | Serve the anonymized local comparison artifact without serving its sealed assignment key | Yes, one optional read-only endpoint | Remove the endpoint and its ignored runtime artifact |
+| Viewer `Blind Test 10` sub-tab | Let the user compare anonymous Top 3 groups with `left`, `right`, `both`, and `neither` choices stored only in the browser | Yes, isolated component and styles | Remove the sub-tab; no canonical data migration is required |
 
 No code from llm-wiki-compiler, VaultMind, Personal OS, or next-wiki has been copied at this milestone. Those projects remain design/code donors until a tested requirement justifies a minimal, license-reviewed extraction.

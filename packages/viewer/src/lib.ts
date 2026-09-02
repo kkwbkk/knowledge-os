@@ -396,8 +396,50 @@ export type ViewerCapabilityEvaluationSummary = {
   pendingLeakCount: number;
   missingExpectedReferenceCount: number;
   averageDurationMs: number;
+  candidateQuestionsWithExpectedHit?: number;
+  candidateQuestionExpectedHitRate?: number;
+  candidateExpectedReferencesHit?: number;
+  candidateExpectedReferenceHitRate?: number;
+  candidatePendingLeakCount?: number;
+  candidateAverageDurationMs?: number;
+  holdout?: {
+    questionIds: string[];
+    baselineQuestionsWithExpectedHit: number;
+    candidateQuestionsWithExpectedHit: number;
+    questionLift: number;
+    requiredQuestionLift: number;
+    passed: boolean;
+  };
   automatedGatePassed: boolean;
+  candidateGatePassed?: boolean;
   relevanceState: "requires-user-rating";
+};
+
+export type ViewerCapabilityBlindChoice = "left" | "right" | "both" | "neither";
+
+export type ViewerCapabilityBlindResult = {
+  id: string;
+  title: string;
+  type: string;
+  sourcePath: string;
+  obsidianUri: string;
+};
+
+export type ViewerCapabilityBlindQuestion = {
+  id: string;
+  question: string;
+  left: ViewerCapabilityBlindResult[];
+  right: ViewerCapabilityBlindResult[];
+};
+
+export type ViewerCapabilityBlindArtifact = {
+  kind: "capability-os-blind-evaluation";
+  version: 1;
+  generatedAt: string;
+  sourceHash: string;
+  questionCount: number;
+  choices: ViewerCapabilityBlindChoice[];
+  questions: ViewerCapabilityBlindQuestion[];
 };
 
 export type ViewerCapabilityOsArtifact = {
@@ -986,6 +1028,16 @@ export async function fetchCapabilityOsArtifact(): Promise<ViewerCapabilityOsArt
     throw new Error(`Failed to load Capability OS artifact: ${response.status} ${response.statusText}`);
   }
   return response.json() as Promise<ViewerCapabilityOsArtifact>;
+}
+
+export async function fetchCapabilityBlindArtifact(): Promise<ViewerCapabilityBlindArtifact | null> {
+  if (embeddedData()) return null;
+  const response = await fetch("/api/capability-os/blind-evaluation", { cache: "no-store" });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Failed to load Capability OS blind evaluation: ${response.status} ${response.statusText}`);
+  }
+  return response.json() as Promise<ViewerCapabilityBlindArtifact>;
 }
 
 export async function searchViewerPages(query: string, options: ViewerSearchOptions = {}): Promise<ViewerSearchResult[]> {

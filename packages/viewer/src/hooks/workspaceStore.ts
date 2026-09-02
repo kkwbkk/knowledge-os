@@ -3,6 +3,7 @@ import {
   fetchApprovalDetail,
   fetchApprovals,
   fetchCandidates,
+  fetchCapabilityBlindArtifact,
   fetchCapabilityOsArtifact,
   fetchDoctorReport,
   fetchGraphArtifact,
@@ -13,6 +14,7 @@ import {
   type ViewerApprovalDetail,
   type ViewerApprovalSummary,
   type ViewerCandidateRecord,
+  type ViewerCapabilityBlindArtifact,
   type ViewerCapabilityOsArtifact,
   type ViewerDoctorReport,
   type ViewerGraphArtifact,
@@ -29,6 +31,7 @@ export type WorkspaceState = {
   approvalDetail: ViewerApprovalDetail | null;
   candidates: ViewerCandidateRecord[];
   capabilityOs: ViewerCapabilityOsArtifact | null;
+  capabilityBlind: ViewerCapabilityBlindArtifact | null;
   memoryTasks: ViewerMemoryTaskSummary[];
   watchStatus: ViewerWatchStatus | null;
   lintFindings: ViewerLintFinding[];
@@ -39,6 +42,7 @@ export type WorkspaceState = {
     approval?: string;
     candidate?: string;
     capabilityOs?: string;
+    capabilityBlind?: string;
     memory?: string;
     watch?: string;
     lint?: string;
@@ -68,6 +72,7 @@ const initialState: WorkspaceState = {
   approvalDetail: null,
   candidates: [],
   capabilityOs: null,
+  capabilityBlind: null,
   memoryTasks: [],
   watchStatus: null,
   lintFindings: [],
@@ -109,37 +114,42 @@ export function useWorkspaceStore() {
     inFlight.current = true;
     try {
       const errors: WorkspaceState["errors"] = {};
-      const [graph, approvals, candidates, capabilityOs, memoryTasks, watchStatus, lintFindings, doctorReport] = await Promise.all([
-        fetchGraphArtifact().catch(() => emptyGraph()),
-        fetchApprovals().catch((error: unknown) => {
-          errors.approval = error instanceof Error ? error.message : String(error);
-          return [] as ViewerApprovalSummary[];
-        }),
-        fetchCandidates().catch((error: unknown) => {
-          errors.candidate = error instanceof Error ? error.message : String(error);
-          return [] as ViewerCandidateRecord[];
-        }),
-        fetchCapabilityOsArtifact().catch((error: unknown) => {
-          errors.capabilityOs = error instanceof Error ? error.message : String(error);
-          return null;
-        }),
-        fetchMemoryTasks().catch((error: unknown) => {
-          errors.memory = error instanceof Error ? error.message : String(error);
-          return [] as ViewerMemoryTaskSummary[];
-        }),
-        fetchWatchStatus().catch((error: unknown) => {
-          errors.watch = error instanceof Error ? error.message : String(error);
-          return { generatedAt: "", watchedRepoRoots: [], pendingSemanticRefresh: [] } as ViewerWatchStatus;
-        }),
-        fetchLintFindings().catch((error: unknown) => {
-          errors.lint = error instanceof Error ? error.message : String(error);
-          return [] as ViewerLintFinding[];
-        }),
-        fetchDoctorReport().catch((error: unknown) => {
-          errors.doctor = error instanceof Error ? error.message : String(error);
-          return null;
-        })
-      ]);
+      const [graph, approvals, candidates, capabilityOs, capabilityBlind, memoryTasks, watchStatus, lintFindings, doctorReport] =
+        await Promise.all([
+          fetchGraphArtifact().catch(() => emptyGraph()),
+          fetchApprovals().catch((error: unknown) => {
+            errors.approval = error instanceof Error ? error.message : String(error);
+            return [] as ViewerApprovalSummary[];
+          }),
+          fetchCandidates().catch((error: unknown) => {
+            errors.candidate = error instanceof Error ? error.message : String(error);
+            return [] as ViewerCandidateRecord[];
+          }),
+          fetchCapabilityOsArtifact().catch((error: unknown) => {
+            errors.capabilityOs = error instanceof Error ? error.message : String(error);
+            return null;
+          }),
+          fetchCapabilityBlindArtifact().catch((error: unknown) => {
+            errors.capabilityBlind = error instanceof Error ? error.message : String(error);
+            return null;
+          }),
+          fetchMemoryTasks().catch((error: unknown) => {
+            errors.memory = error instanceof Error ? error.message : String(error);
+            return [] as ViewerMemoryTaskSummary[];
+          }),
+          fetchWatchStatus().catch((error: unknown) => {
+            errors.watch = error instanceof Error ? error.message : String(error);
+            return { generatedAt: "", watchedRepoRoots: [], pendingSemanticRefresh: [] } as ViewerWatchStatus;
+          }),
+          fetchLintFindings().catch((error: unknown) => {
+            errors.lint = error instanceof Error ? error.message : String(error);
+            return [] as ViewerLintFinding[];
+          }),
+          fetchDoctorReport().catch((error: unknown) => {
+            errors.doctor = error instanceof Error ? error.message : String(error);
+            return null;
+          })
+        ]);
       const graphReport = await fetchGraphReport().catch(() => null);
       startTransition(() => {
         dispatch({
@@ -150,6 +160,7 @@ export function useWorkspaceStore() {
             approvals,
             candidates,
             capabilityOs,
+            capabilityBlind,
             memoryTasks,
             watchStatus,
             lintFindings,

@@ -1,10 +1,15 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { type SearchResult, searchVault } from "@swarmvaultai/engine";
+import { rerankCapabilityRecords } from "./domain-rerank.js";
 import { type CapabilityRecord, type CapabilityVaultSnapshot, scanCapabilityVault } from "./index.js";
 import type { ProjectionManifest, ProjectionRecord } from "./projection.js";
 
 export const CAPABILITY_OS_EVALUATION_ARTIFACT = "capability-os-evaluation.json";
+export const CAPABILITY_OS_BLIND_EVALUATION_ARTIFACT = "capability-os-blind-evaluation.json";
+export const CAPABILITY_OS_BLIND_KEY_ARTIFACT = "capability-os-blind-key.json";
+export const M1C_HOLDOUT_QUESTION_IDS = ["Q03", "Q06", "Q09", "Q12", "Q15", "Q18", "Q21", "Q24", "Q27", "Q30"] as const;
 
 export interface GoldenQuestion {
   id: string;
@@ -30,6 +35,20 @@ export interface GoldenQuestionEvaluation {
   traceable: boolean;
   pendingLeakCount: number;
   durationMs: number;
+  candidateActual: GoldenEvaluationMatch[];
+  candidateExpectedHits: string[];
+  candidateTraceable: boolean;
+  candidatePendingLeakCount: number;
+  candidateDurationMs: number;
+}
+
+export interface GoldenHoldoutSummary {
+  questionIds: string[];
+  baselineQuestionsWithExpectedHit: number;
+  candidateQuestionsWithExpectedHit: number;
+  questionLift: number;
+  requiredQuestionLift: number;
+  passed: boolean;
 }
 
 export interface GoldenEvaluationSummary {
@@ -45,19 +64,59 @@ export interface GoldenEvaluationSummary {
   pendingLeakCount: number;
   missingExpectedReferenceCount: number;
   averageDurationMs: number;
+  candidateQuestionsWithExpectedHit: number;
+  candidateQuestionExpectedHitRate: number;
+  candidateExpectedReferencesHit: number;
+  candidateExpectedReferenceHitRate: number;
+  candidatePendingLeakCount: number;
+  candidateAverageDurationMs: number;
+  holdout: GoldenHoldoutSummary;
   automatedGatePassed: boolean;
+  candidateGatePassed: boolean;
   relevanceState: "requires-user-rating";
 }
 
 export interface GoldenEvaluationReport {
   kind: "capability-os-golden-evaluation";
-  version: 1;
+  version: 2;
   generatedAt: string;
   sourceHash: string;
   questionSetPath: string;
   topK: number;
   summary: GoldenEvaluationSummary;
   questions: GoldenQuestionEvaluation[];
+}
+
+export interface BlindEvaluationResult {
+  id: string;
+  title: string;
+  type: string;
+  sourcePath: string;
+  obsidianUri: string;
+}
+
+export interface BlindEvaluationQuestion {
+  id: string;
+  question: string;
+  left: BlindEvaluationResult[];
+  right: BlindEvaluationResult[];
+}
+
+export interface BlindEvaluationArtifact {
+  kind: "capability-os-blind-evaluation";
+  version: 1;
+  generatedAt: string;
+  sourceHash: string;
+  questionCount: number;
+  choices: ["left", "right", "both", "neither"];
+  questions: BlindEvaluationQuestion[];
+}
+
+interface BlindEvaluationKey {
+  kind: "capability-os-blind-key";
+  version: 1;
+  sourceHash: string;
+  assignments: Array<{ id: string; left: "baseline" | "candidate"; right: "baseline" | "candidate" }>;
 }
 
 export interface EvaluateGoldenQuestionsOptions {
@@ -197,6 +256,74 @@ function mappedSearchResults(
   return mapped;
 }
 
+function capabilityObsidianUri(vaultName: string, scopePath: string, sourcePath: string): string {
+  const filePath = path.posix.join(scopePath, withoutMarkdownExtension(sourcePath));
+  return `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(filePath)}`;
+}
+
+function blindResults(matches: readonly GoldenEvaluationMatch[], vaultName: string, scopePath: string): BlindEvaluationResult[] {
+  return matches.map((match) => ({
+    id: match.id,
+    title: match.title,
+    type: match.type,
+    sourcePath: match.sourcePath,
+    obsidianUri: capabilityObsidianUri(vaultName, scopePath, match.sourcePath)
+  }));
+}
+
+function candidateOnLeft(sourceHash: string, questionId: string): boolean {
+  const digest = crypto.createHash("sha256").update(`${sourceHash}:${questionId}:m1c-blind-v1`).digest();
+  return digest[0] % 2 === 0;
+}
+
+async function writeBlindEvaluation(
+  swarmRoot: string,
+  snapshot: CapabilityVaultSnapshot,
+  questions: readonly GoldenQuestionEvaluation[],
+  generatedAt: string
+): Promise<void> {
+  const holdoutIds = new Set<string>(M1C_HOLDOUT_QUESTION_IDS);
+  const vaultName = path.basename(snapshot.vaultRoot);
+  const assignments: BlindEvaluationKey["assignments"] = [];
+  const blindQuestions = questions
+    .filter((question) => holdoutIds.has(question.id))
+    .map((question) => {
+      const candidateLeft = candidateOnLeft(snapshot.sourceHash, question.id);
+      assignments.push({
+        id: question.id,
+        left: candidateLeft ? "candidate" : "baseline",
+        right: candidateLeft ? "baseline" : "candidate"
+      });
+      const baseline = blindResults(question.actual, vaultName, snapshot.scopePath);
+      const candidate = blindResults(question.candidateActual, vaultName, snapshot.scopePath);
+      return {
+        id: question.id,
+        question: question.question,
+        left: candidateLeft ? candidate : baseline,
+        right: candidateLeft ? baseline : candidate
+      } satisfies BlindEvaluationQuestion;
+    });
+  const artifact: BlindEvaluationArtifact = {
+    kind: "capability-os-blind-evaluation",
+    version: 1,
+    generatedAt,
+    sourceHash: snapshot.sourceHash,
+    questionCount: blindQuestions.length,
+    choices: ["left", "right", "both", "neither"],
+    questions: blindQuestions
+  };
+  const key: BlindEvaluationKey = {
+    kind: "capability-os-blind-key",
+    version: 1,
+    sourceHash: snapshot.sourceHash,
+    assignments
+  };
+  await Promise.all([
+    fs.writeFile(path.join(swarmRoot, "state", CAPABILITY_OS_BLIND_EVALUATION_ARTIFACT), `${JSON.stringify(artifact, null, 2)}\n`, "utf8"),
+    fs.writeFile(path.join(swarmRoot, "state", CAPABILITY_OS_BLIND_KEY_ARTIFACT), `${JSON.stringify(key, null, 2)}\n`, "utf8")
+  ]);
+}
+
 export async function evaluateGoldenQuestions(options: EvaluateGoldenQuestionsOptions): Promise<GoldenEvaluationReport> {
   const vaultRoot = path.resolve(options.vaultRoot);
   const runtimeRoot = path.resolve(options.runtimeRoot);
@@ -239,10 +366,34 @@ export async function evaluateGoldenQuestions(options: EvaluateGoldenQuestionsOp
     const startedAt = performance.now();
     const rawResults = await searchVault(swarmRoot, question.question, Math.max(30, topK * 8));
     const actual = mappedSearchResults(rawResults, sourceMap, records, snapshot.scopePath, questionSetCanonicalPath, topK);
+    const baselineDurationMs = Number((performance.now() - startedAt).toFixed(2));
     const actualPaths = new Set(actual.map((entry) => normalizedCanonicalPath(entry.sourcePath, snapshot.scopePath)));
     const expectedHits = question.expectedPaths.filter((expected) => actualPaths.has(expected));
     const missingExpectedPaths = question.expectedPaths.filter((expected) => !expectedExistence.get(expected));
     const pendingLeakCount = actual.filter((entry) => {
+      const record = records.get(normalizedCanonicalPath(entry.sourcePath, snapshot.scopePath));
+      return record?.admission.lane !== "searchable";
+    }).length;
+    const candidateStartedAt = performance.now();
+    const candidateActual = rerankCapabilityRecords(question.question, snapshot, {
+      topK,
+      baseline: actual,
+      excludedPaths: new Set([`${questionSetCanonicalPath}.md`]),
+      asOfDate: new Date().toISOString().slice(0, 10)
+    }).map(
+      (entry) =>
+        ({
+          id: entry.id,
+          title: entry.title,
+          sourcePath: entry.sourcePath,
+          type: entry.type,
+          rank: -entry.score
+        }) satisfies GoldenEvaluationMatch
+    );
+    const candidateDurationMs = Number((performance.now() - candidateStartedAt).toFixed(2));
+    const candidatePaths = new Set(candidateActual.map((entry) => normalizedCanonicalPath(entry.sourcePath, snapshot.scopePath)));
+    const candidateExpectedHits = question.expectedPaths.filter((expected) => candidatePaths.has(expected));
+    const candidatePendingLeakCount = candidateActual.filter((entry) => {
       const record = records.get(normalizedCanonicalPath(entry.sourcePath, snapshot.scopePath));
       return record?.admission.lane !== "searchable";
     }).length;
@@ -255,7 +406,12 @@ export async function evaluateGoldenQuestions(options: EvaluateGoldenQuestionsOp
       missingExpectedPaths,
       traceable: actual.length > 0,
       pendingLeakCount,
-      durationMs: Number((performance.now() - startedAt).toFixed(2))
+      durationMs: baselineDurationMs,
+      candidateActual,
+      candidateExpectedHits,
+      candidateTraceable: candidateActual.length > 0,
+      candidatePendingLeakCount,
+      candidateDurationMs
     });
   }
 
@@ -268,11 +424,36 @@ export async function evaluateGoldenQuestions(options: EvaluateGoldenQuestionsOp
   const averageDurationMs = evaluated.length
     ? Number((evaluated.reduce((total, question) => total + question.durationMs, 0) / evaluated.length).toFixed(2))
     : 0;
+  const candidateQuestionsWithExpectedHit = evaluated.filter((question) => question.candidateExpectedHits.length > 0).length;
+  const candidateExpectedReferencesHit = evaluated.reduce((total, question) => total + question.candidateExpectedHits.length, 0);
+  const candidatePendingLeakCount = evaluated.reduce((total, question) => total + question.candidatePendingLeakCount, 0);
+  const candidateAverageDurationMs = evaluated.length
+    ? Number((evaluated.reduce((total, question) => total + question.candidateDurationMs, 0) / evaluated.length).toFixed(2))
+    : 0;
+  const holdoutIds = new Set<string>(M1C_HOLDOUT_QUESTION_IDS);
+  const holdoutQuestions = evaluated.filter((question) => holdoutIds.has(question.id));
+  const baselineHoldoutHits = holdoutQuestions.filter((question) => question.expectedHits.length > 0).length;
+  const candidateHoldoutHits = holdoutQuestions.filter((question) => question.candidateExpectedHits.length > 0).length;
+  const holdout: GoldenHoldoutSummary = {
+    questionIds: [...M1C_HOLDOUT_QUESTION_IDS],
+    baselineQuestionsWithExpectedHit: baselineHoldoutHits,
+    candidateQuestionsWithExpectedHit: candidateHoldoutHits,
+    questionLift: candidateHoldoutHits - baselineHoldoutHits,
+    requiredQuestionLift: 3,
+    passed: candidateHoldoutHits - baselineHoldoutHits >= 3
+  };
   const automatedGatePassed =
     evaluated.length === expectedQuestionCount &&
     traceableQuestions === evaluated.length &&
     pendingLeakCount === 0 &&
     missingExpectedReferenceCount === 0;
+  const candidateGatePassed =
+    automatedGatePassed &&
+    evaluated.every((question) => question.candidateTraceable) &&
+    candidatePendingLeakCount === 0 &&
+    candidateQuestionsWithExpectedHit >= questionsWithExpectedHit &&
+    holdout.passed &&
+    candidateAverageDurationMs <= 100;
   const summary: GoldenEvaluationSummary = {
     questionCount: evaluated.length,
     expectedQuestionCount,
@@ -286,13 +467,22 @@ export async function evaluateGoldenQuestions(options: EvaluateGoldenQuestionsOp
     pendingLeakCount,
     missingExpectedReferenceCount,
     averageDurationMs,
+    candidateQuestionsWithExpectedHit,
+    candidateQuestionExpectedHitRate: roundRate(candidateQuestionsWithExpectedHit, evaluated.length),
+    candidateExpectedReferencesHit,
+    candidateExpectedReferenceHitRate: roundRate(candidateExpectedReferencesHit, expectedReferenceCount),
+    candidatePendingLeakCount,
+    candidateAverageDurationMs,
+    holdout,
     automatedGatePassed,
+    candidateGatePassed,
     relevanceState: "requires-user-rating"
   };
+  const generatedAt = new Date().toISOString();
   const report: GoldenEvaluationReport = {
     kind: "capability-os-golden-evaluation",
-    version: 1,
-    generatedAt: new Date().toISOString(),
+    version: 2,
+    generatedAt,
     sourceHash: snapshot.sourceHash,
     questionSetPath: path.posix.join(
       snapshot.scopePath,
@@ -303,6 +493,9 @@ export async function evaluateGoldenQuestions(options: EvaluateGoldenQuestionsOp
     questions: evaluated
   };
   const reportPath = path.join(swarmRoot, "state", CAPABILITY_OS_EVALUATION_ARTIFACT);
-  await fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  await Promise.all([
+    fs.writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8"),
+    writeBlindEvaluation(swarmRoot, snapshot, evaluated, generatedAt)
+  ]);
   return report;
 }
